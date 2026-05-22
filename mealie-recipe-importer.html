@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mealie Recipe Importer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0b0b;
+    --surface: #141414;
+    --card: #1c1c1c;
+    --border: #252525;
+    --amber: #f59e0b;
+    --amber-mid: #b45309;
+    --amber-dark: #78350f;
+    --text: #ebebeb;
+    --muted: #555;
+    --muted-md: #888;
+    --green: #10b981;
+    --green-bg: #031a0e;
+    --green-border: #166534;
+    --red: #f87171;
+    --red-bg: #1f0707;
+    --red-border: #7f1d1d;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Sora', system-ui, sans-serif;
+    min-height: 100vh; padding: 40px 24px;
+  }
+
+  .wrap { max-width: 740px; margin: 0 auto; }
+
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.4px; }
+  .accent-bar { width: 32px; height: 3px; background: var(--amber); border-radius: 2px; margin: 10px 0; }
+  .subtitle { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+  /* Steps */
+  .steps { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0 28px; }
+  .step-pill {
+    padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: var(--surface); color: var(--muted); border: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+  .step-pill.active { background: var(--amber); color: var(--bg); border-color: var(--amber); }
+  .step-pill.done   { background: var(--amber-dark); color: var(--amber); border-color: var(--amber-mid); }
+
+  /* Sections */
+  .section { display: none; }
+  .section.visible { display: block; }
+
+  /* Config fields */
+  .config-group { margin-bottom: 20px; }
+  .config-group + .config-group { margin-top: 4px; }
+  .field-group { margin-bottom: 14px; }
+  .field-label { font-size: 12px; font-weight: 600; color: var(--muted-md); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .field-label .optional { font-size: 10px; color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+  .field-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px;
+    font-family: var(--mono); transition: border-color 0.2s;
+  }
+  .field-input:focus { outline: none; border-color: var(--amber); }
+  .field-input::placeholder { color: var(--muted); }
+  .field-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+  .section-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; margin-bottom: 16px; }
+  .section-card-title { font-size: 13px; font-weight: 700; color: var(--muted-md); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section-card-title span { font-size: 16px; }
+
+  .config-status { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 8px 14px; border-radius: 6px; margin-top: -8px; margin-bottom: 16px; }
+  .config-status.ok  { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
+  .config-status.err { background: var(--red-bg);   border: 1px solid var(--red-border);   color: var(--red); }
+
+  /* Dropzone */
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 44px 24px;
+    text-align: center; cursor: pointer; background: var(--surface);
+    margin-bottom: 20px; transition: border-color 0.2s, background 0.2s; user-select: none;
+  }
+  .dropzone:hover, .dropzone.dragging { border-color: var(--amber); background: #1a1200; }
+  .dropzone .dz-icon  { font-size: 34px; margin-bottom: 10px; }
+  .dropzone .dz-title { font-weight: 600; margin-bottom: 6px; }
+  .dropzone .dz-sub   { color: var(--muted); font-size: 13px; }
+  .dropzone .dz-sub span { color: var(--amber); }
+
+  /* File list */
+  .file-list-header { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+  .file-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+  .file-item .file-name { font-size: 13px; font-family: var(--mono); color: var(--muted-md); }
+  .file-item .remove-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 22px; line-height: 1; padding: 0 4px; font-family: inherit; }
+  .file-item .remove-btn:hover { color: var(--red); }
+
+  /* Options card */
+  .options-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+  .options-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+
+
+  /* Buttons */
+  .btn-primary { width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--amber); color: var(--bg); font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: opacity 0.2s; }
+  .btn-primary:hover    { opacity: 0.9; }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; opacity: 1; }
+  .btn-secondary { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted-md); padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-secondary:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* Log box */
+  .log-box { background: #070707; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; max-height: 380px; overflow-y: auto; line-height: 2; }
+  .log-info    { color: var(--muted-md); }
+  .log-success { color: var(--green); }
+  .log-warn    { color: var(--amber); }
+  .log-error   { color: var(--red); }
+
+  /* Recipe cards */
+  .recipe-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 10px; }
+  .recipe-header { display: flex; gap: 12px; align-items: flex-start; }
+  .recipe-info { flex: 1; min-width: 0; }
+  .recipe-name { font-weight: 700; font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .edit-name-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 6px; font-family: inherit; }
+  .edit-name-btn:hover { color: var(--amber); }
+  .recipe-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+  .recipe-meta span { font-size: 12px; color: var(--muted); }
+  .recipe-desc { font-size: 13px; color: var(--muted-md); margin-top: 8px; line-height: 1.6; }
+  .recipe-source { font-size: 11px; color: #2a2a2a; font-family: var(--mono); margin-top: 8px; }
+  .remove-recipe-btn { background: none; border: 1px solid #333; border-radius: 6px; color: var(--red); cursor: pointer; font-size: 13px; padding: 6px 10px; flex-shrink: 0; font-family: inherit; }
+  .remove-recipe-btn:hover { border-color: var(--red); }
+  .edit-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .edit-input { flex: 1; background: var(--surface); border: 1px solid var(--amber); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 15px; font-weight: 600; font-family: inherit; }
+  .edit-confirm { background: var(--amber); border: none; border-radius: 6px; padding: 6px 12px; color: var(--bg); font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit; }
+
+  /* Progress bar */
+  .progress-bar  { background: var(--border); border-radius: 4px; height: 6px; margin-bottom: 20px; }
+  .progress-fill { background: var(--amber); height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s; }
+
+  /* Result rows */
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; }
+  .result-row.ok  { background: var(--green-bg); border: 1px solid var(--green-border); }
+  .result-row.err { background: var(--red-bg);   border: 1px solid var(--red-border); }
+  .result-left { display: flex; align-items: center; gap: 10px; }
+  .result-row.ok  .result-name { color: var(--green); font-size: 14px; }
+  .result-row.err .result-name { color: var(--red);   font-size: 14px; }
+  .result-link  { font-size: 12px; color: var(--amber); text-decoration: none; font-family: var(--mono); }
+  .result-link:hover { text-decoration: underline; }
+  .result-error { font-size: 11px; color: var(--muted); font-family: var(--mono); max-width: 240px; text-align: right; }
+
+  /* Done */
+  .done-header { text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-bottom: 20px; }
+  .done-emoji  { font-size: 44px; margin-bottom: 12px; }
+  .done-title  { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .done-fail   { font-size: 13px; color: var(--red); margin-bottom: 8px; }
+  .done-open   { display: inline-block; margin-top: 12px; padding: 10px 28px; background: var(--amber); color: var(--bg); border-radius: 8px; font-size: 14px; font-weight: 700; text-decoration: none; }
+
+  .section-heading { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .section-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div style="margin-bottom: 32px;">
+    <h1>Mealie Recipe Importer</h1>
+    <div class="accent-bar"></div>
+    <p class="subtitle">Configure your servers, upload Word documents, extract recipes with AI, then bulk-import into Mealie.</p>
+  </div>
+
+  <!-- Step Indicator -->
+  <div class="steps">
+    <div class="step-pill active" data-step="config">Configure</div>
+    <div class="step-pill"        data-step="upload">Upload</div>
+    <div class="step-pill"        data-step="processing">Extract</div>
+    <div class="step-pill"        data-step="review">Review</div>
+    <div class="step-pill"        data-step="importing">Import</div>
+    <div class="step-pill"        data-step="done">Done</div>
+  </div>
+
+  <!-- Config Section -->
+  <div id="section-config" class="section visible">
+
+    <div class="section-card">
+      <div class="section-card-title"><span>🤖</span> AI Server (OpenAI-compatible)</div>
+      <div class="field-group">
+        <div class="field-label">Server URL</div>
+        <input class="field-input" id="cfg-ai-url" type="url" placeholder="http://localhost:11434/v1/chat/completions">
+        <div class="field-hint">For Ollama: http://&lt;host&gt;:11434/v1/chat/completions — this app's proxy forwards requests here</div>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Model</div>
+        <input class="field-input" id="cfg-ai-model" type="text" placeholder="e.g. gpt-4o-mini or llama3.2">
+      </div>
+      <div class="field-group" style="margin-bottom:0;">
+        <div class="field-label">API Key <span class="optional">optional</span></div>
+        <input class="field-input" id="cfg-ai-key" type="password" placeholder="Leave blank for Ollama">
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-card-title"><span>🍽️</span> Mealie Instance</div>
+      <div class="field-group">
+        <div class="field-label">Mealie URL</div>
+        <input class="field-input" id="cfg-mealie-url" type="url" placeholder="https://mealie.yourdomain.com">
+      </div>
+      <div class="field-group" style="margin-bottom:0;">
+        <div class="field-label">API Token</div>
+        <input class="field-input" id="cfg-mealie-token" type="password" placeholder="Generate in Mealie under Profile > API Tokens">
+        <div class="field-hint">Profile picture (top right) &rarr; Manage Your Profile &rarr; API Tokens</div>
+      </div>
+    </div>
+
+    <div id="config-status" style="display:none;" class="config-status"></div>
+
+    <div style="display:flex; gap:12px;">
+      <button class="btn-primary" id="btn-config-save" style="flex:1;">Test &amp; Save Configuration &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Upload Section -->
+  <div id="section-upload" class="section">
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div>
+        <div class="section-heading">Upload Documents</div>
+        <div class="section-sub" style="margin:0;">Drop your .docx recipe files below.</div>
+      </div>
+      <button class="btn-secondary" onclick="goTo('config')">&#9664; Edit Config</button>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dz-icon">📂</div>
+      <div class="dz-title">Drop .docx files here</div>
+      <div class="dz-sub">or <span>click to browse</span></div>
+      <input type="file" id="file-input" accept=".docx,.doc" multiple style="display:none">
+    </div>
+
+    <div id="file-list-wrap" style="display:none; margin-bottom: 20px;">
+      <div class="file-list-header" id="file-count-label">0 files queued</div>
+      <div id="file-list"></div>
+    </div>
+
+    <button class="btn-primary" id="btn-process" disabled>Add files to continue</button>
+  </div>
+
+  <!-- Processing Section -->
+  <div id="section-processing" class="section">
+    <div class="section-heading">Extracting recipes...</div>
+    <div class="section-sub">Parsing documents and identifying recipe content with AI.</div>
+    <div class="log-box" id="log-box"><span class="log-info">Initializing...</span></div>
+  </div>
+
+  <!-- Review Section -->
+  <div id="section-review" class="section">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+      <div>
+        <div class="section-heading" id="review-heading">0 recipes ready</div>
+        <div class="section-sub" style="margin-bottom: 0;">Review below. Click ✎ to rename, or remove any you don't want.</div>
+      </div>
+    </div>
+    <div id="recipe-list"></div>
+    <div id="no-recipes" style="display:none; text-align:center; padding:60px 0; color:var(--muted);">
+      <div style="font-size:36px;margin-bottom:14px;">🔍</div>
+      <div style="font-weight:600;margin-bottom:6px;">No recipes found</div>
+      <div style="font-size:13px;">Make sure your documents contain recipe content.</div>
+    </div>
+    <button class="btn-primary" id="btn-import" style="margin-top:8px;">Import Recipes to Mealie →</button>
+  </div>
+
+  <!-- Importing Section -->
+  <div id="section-importing" class="section">
+    <div class="section-heading">Importing to Mealie...</div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px;margin-top:16px;">
+      <span style="font-size:13px;color:var(--muted);">Progress</span>
+      <span style="font-size:13px;font-family:var(--mono);color:var(--muted-md);" id="import-counter">0/0</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div id="import-results"></div>
+  </div>
+
+  <!-- Done Section -->
+  <div id="section-done" class="section">
+    <div class="done-header" id="done-header"></div>
+    <div id="done-results"></div>
+    <div style="text-align:center;margin-top:20px;">
+      <button class="btn-secondary" onclick="startOver()">Import More Recipes</button>
+    </div>
+  </div>
+
+</div>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let cfg = { aiUrl: "", aiModel: "", aiKey: "", mealieUrl: "", mealieToken: "" };
+let files   = [];
+let recipes = [];
+
+const STEPS = ["config","upload","processing","review","importing","done"];
+const LS_KEY = "mealie-importer-config";
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function uid(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+function fmtDur(iso){
+  if(!iso) return null;
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if(!m) return null;
+  const h = parseInt(m[1]||0,10), min = parseInt(m[2]||0,10);
+  if(h && min) return `${h}h ${min}m`;
+  if(h) return `${h}h`;
+  if(min) return `${min} min`;
+  return null;
+}
+function esc(s){ const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+// ── Step management ────────────────────────────────────────────────────────
+function goTo(step){
+  document.querySelectorAll(".section").forEach(s => s.classList.remove("visible"));
+  document.getElementById("section-"+step).classList.add("visible");
+  const idx = STEPS.indexOf(step);
+  document.querySelectorAll(".step-pill").forEach((p,i) => {
+    p.classList.remove("active","done");
+    if(i < idx) p.classList.add("done");
+    else if(i === idx) p.classList.add("active");
+  });
+}
+
+// ── Config persistence ─────────────────────────────────────────────────────
+function loadSavedConfig(){
+  try {
+    const saved = localStorage.getItem(LS_KEY);
+    if(!saved) return;
+    const parsed = JSON.parse(saved);
+    cfg = { ...cfg, ...parsed };
+    document.getElementById("cfg-ai-url").value      = cfg.aiUrl      || "";
+    document.getElementById("cfg-ai-model").value    = cfg.aiModel    || "";
+    document.getElementById("cfg-ai-key").value      = cfg.aiKey      || "";
+    document.getElementById("cfg-mealie-url").value  = cfg.mealieUrl  || "";
+    document.getElementById("cfg-mealie-token").value= cfg.mealieToken|| "";
+  } catch(e) {}
+}
+
+function saveConfig(){
+  cfg.aiUrl       = document.getElementById("cfg-ai-url").value.trim().replace(/\/$/, "");
+  cfg.aiModel     = document.getElementById("cfg-ai-model").value.trim() || "gpt-4o-mini";
+  cfg.aiKey       = document.getElementById("cfg-ai-key").value.trim();
+  cfg.mealieUrl   = document.getElementById("cfg-mealie-url").value.trim().replace(/\/$/, "");
+  cfg.mealieToken = document.getElementById("cfg-mealie-token").value.trim();
+  // Save everything except keys to localStorage
+  localStorage.setItem(LS_KEY, JSON.stringify({
+    aiUrl: cfg.aiUrl, aiModel: cfg.aiModel, mealieUrl: cfg.mealieUrl
+  }));
+}
+
+function showConfigStatus(ok, msg){
+  const el = document.getElementById("config-status");
+  el.style.display = "flex";
+  el.className = `config-status ${ok ? "ok" : "err"}`;
+  el.innerHTML = `<span>${ok ? "✓" : "✗"}</span> ${esc(msg)}`;
+}
+
+// ── Config validation ──────────────────────────────────────────────────────
+document.getElementById("btn-config-save").addEventListener("click", async () => {
+  const btn = document.getElementById("btn-config-save");
+  btn.disabled = true;
+  btn.textContent = "Testing connections...";
+  saveConfig();
+
+  const errors = [];
+
+  // Validate required fields
+  if(!cfg.aiUrl)       errors.push("AI Server URL is required");
+  if(!cfg.mealieUrl)   errors.push("Mealie URL is required");
+  if(!cfg.mealieToken) errors.push("Mealie API Token is required");
+
+  if(errors.length){
+    showConfigStatus(false, errors.join(" | "));
+    btn.disabled = false;
+    btn.textContent = "Test & Save Configuration →";
+    return;
+  }
+
+  // Test AI connection via proxy
+  btn.textContent = "Testing AI server...";
+  try {
+    const r = await fetch("/proxy/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aiUrl:   cfg.aiUrl,
+        aiModel: cfg.aiModel,
+        aiKey:   cfg.aiKey,
+        system:  "You are a helpful assistant. Reply with only the word PONG.",
+        messages: [{ role: "user", content: "PING" }]
+      })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error?.message || `HTTP ${r.status}`);
+    const text = data.content?.find(b => b.type === "text")?.text || "";
+    if(!text) throw new Error("Empty response from AI server");
+  } catch(e) {
+    showConfigStatus(false, `AI server test failed: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = "Test & Save Configuration →";
+    return;
+  }
+
+  // Test Mealie connection
+  btn.textContent = "Testing Mealie...";
+  try {
+    const r = await fetch(`${cfg.mealieUrl}/api/recipes?page=1&perPage=1`, {
+      headers: { "Authorization": `Bearer ${cfg.mealieToken}` }
+    });
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  } catch(e) {
+    showConfigStatus(false, `Mealie connection failed: ${e.message}`);
+    btn.disabled = false;
+    btn.textContent = "Test & Save Configuration →";
+    return;
+  }
+
+  showConfigStatus(true, "Both connections verified. Configuration saved.");
+  btn.disabled = false;
+  btn.textContent = "Test & Save Configuration →";
+  setTimeout(() => goTo("upload"), 900);
+});
+
+// ── File handling ──────────────────────────────────────────────────────────
+const dropzone  = document.getElementById("dropzone");
+const fileInput = document.getElementById("file-input");
+
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover",  e => { e.preventDefault(); dropzone.classList.add("dragging"); });
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragging"));
+dropzone.addEventListener("drop",      e => { e.preventDefault(); dropzone.classList.remove("dragging"); addFiles(e.dataTransfer.files); });
+fileInput.addEventListener("change",   e => addFiles(e.target.files));
+
+function addFiles(rawFiles){
+  const valid = Array.from(rawFiles).filter(f => /\.docx?$/i.test(f.name));
+  valid.forEach(f => {
+    if(!files.some(x => x.name === f.name)) files.push({ id: uid(), file: f, name: f.name });
+  });
+  renderFileList();
+}
+function removeFile(id){
+  files = files.filter(f => f.id !== id);
+  renderFileList();
+}
+function renderFileList(){
+  const wrap = document.getElementById("file-list-wrap");
+  const list = document.getElementById("file-list");
+  const btn  = document.getElementById("btn-process");
+  const lbl  = document.getElementById("file-count-label");
+  if(!files.length){
+    wrap.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Add files to continue";
+    return;
+  }
+  wrap.style.display = "block";
+  lbl.textContent = `${files.length} file${files.length!==1?"s":""} queued`;
+  list.innerHTML = files.map(f => `
+    <div class="file-item">
+      <span class="file-name">${esc(f.name)}</span>
+      <button class="remove-btn" onclick="removeFile('${f.id}')">×</button>
+    </div>`).join("");
+  btn.disabled = false;
+  btn.textContent = `Extract Recipes from ${files.length} File${files.length!==1?"s":""} →`;
+}
+
+document.getElementById("btn-process").addEventListener("click", processFiles);
+
+// ── Log helpers ────────────────────────────────────────────────────────────
+function clearLog(){ document.getElementById("log-box").innerHTML = ""; }
+function addLog(msg, type="info"){
+  const box  = document.getElementById("log-box");
+  const line = document.createElement("div");
+  line.className   = `log-${type}`;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── AI extraction ──────────────────────────────────────────────────────────
+async function extractWithAI(text, filename){
+  if(!cfg.aiUrl) throw new Error("AI Server URL is not configured — go back to the config step and re-save.");
+  const res = await fetch("/proxy/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      aiUrl:   cfg.aiUrl,
+      aiModel: cfg.aiModel,
+      aiKey:   cfg.aiKey,
+      system: `You are a recipe extraction specialist. Extract all complete recipes from the document text.
+Preserve the original language of the recipes — do not translate.
+
+Respond ONLY with valid JSON — no markdown fences, no preamble, no explanation:
+{"recipes":[{"name":"Full recipe name","description":"1-2 sentence summary","recipeYield":"4 servings","prepTime":"PT15M","cookTime":"PT30M","totalTime":"PT45M","recipeIngredient":["2 cups flour","3 eggs"],"recipeInstructions":["Step 1.","Step 2."],"notes":"Tips as a single string or null"}]}
+
+Rules:
+- Times use ISO 8601: PT15M = 15 min, PT1H30M = 1.5 hrs. Use null if unknown.
+- recipeIngredient and recipeInstructions are arrays of plain strings.
+- If a document has multiple recipes, include all of them.
+- If no recipes are found, return {"recipes":[]}.`,
+      messages: [{ role: "user", content: `Filename: ${filename}\n\n---\n\n${text}` }]
+    })
+  });
+
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error?.message || `API error ${res.status}`);
+  const raw   = data.content?.find(b => b.type === "text")?.text || "{}";
+  const clean = raw.replace(/```(?:json)?|```/g,"").trim();
+  const parsed = JSON.parse(clean);
+  return Array.isArray(parsed.recipes) ? parsed.recipes : [];
+}
+
+// ── Main processing flow ───────────────────────────────────────────────────
+async function processFiles(){
+  goTo("processing"); clearLog(); recipes = [];
+  addLog(`Starting — ${files.length} file(s) to process`);
+
+  for(let i = 0; i < files.length; i++){
+    const {file, name} = files[i];
+    addLog(`[${i+1}/${files.length}] Parsing "${name}"...`);
+    try {
+      const buf    = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      const text   = result.value.trim();
+      if(!text){ addLog(`  ⚠ No text found in "${name}"`, "warn"); continue; }
+      addLog(`  ✓ Extracted (${text.length.toLocaleString()} chars)`);
+      addLog(`  → Sending to AI for recipe extraction...`);
+      const extracted = await extractWithAI(text, name);
+      if(!extracted.length){
+        addLog(`  ⚠ No recipes found in "${name}"`, "warn");
+      } else {
+        addLog(`  ✓ ${extracted.length} recipe(s): ${extracted.map(r=>r.name).join(", ")}`, "success");
+        extracted.forEach(r => recipes.push({ ...r, _id: uid(), _source: name }));
+      }
+    } catch(err) {
+      addLog(`  ✗ ${err.message}`, "error");
+    }
+  }
+
+  addLog(`\nDone — ${recipes.length} recipe(s) ready`, recipes.length ? "success" : "warn");
+  setTimeout(() => renderReview(), 700);
+}
+
+// ── Review ─────────────────────────────────────────────────────────────────
+function renderReview(){
+  goTo("review");
+  const list    = document.getElementById("recipe-list");
+  const noRec   = document.getElementById("no-recipes");
+  const btn     = document.getElementById("btn-import");
+  const heading = document.getElementById("review-heading");
+
+  if(!recipes.length){
+    list.innerHTML = ""; noRec.style.display = "block"; btn.style.display = "none"; return;
+  }
+  noRec.style.display = "none"; btn.style.display = "block";
+  heading.textContent = `${recipes.length} recipe${recipes.length!==1?"s":""} ready to import`;
+  btn.textContent     = `Import ${recipes.length} Recipe${recipes.length!==1?"s":""} to Mealie →`;
+
+  list.innerHTML = recipes.map(r => {
+    const ing   = r.recipeIngredient?.length  || 0;
+    const steps = r.recipeInstructions?.length || 0;
+    const time  = fmtDur(r.totalTime);
+    return `
+      <div class="recipe-card" data-recipe-id="${r._id}">
+        <div class="recipe-header">
+          <div class="recipe-info">
+            <div class="recipe-name" id="name-display-${r._id}">
+              <span class="rname">${esc(r.name)}</span>
+              <button class="edit-name-btn" onclick="startEdit('${r._id}')" title="Edit name">✎</button>
+            </div>
+            <div class="edit-row" id="name-edit-${r._id}" style="display:none;">
+              <input class="edit-input" id="name-input-${r._id}" value="${esc(r.name)}" onkeydown="handleEditKey(event,'${r._id}')">
+              <button class="edit-confirm" onclick="saveEdit('${r._id}')">✓</button>
+            </div>
+            <div class="recipe-meta">
+              <span>${ing} ingredient${ing!==1?"s":""}</span>
+              <span>${steps} step${steps!==1?"s":""}</span>
+              ${time ? `<span>${time}</span>` : ""}
+            </div>
+            ${r.description ? `<div class="recipe-desc">${esc(r.description)}</div>` : ""}
+            <div class="recipe-source">from: ${esc(r._source)}</div>
+          </div>
+          <button class="remove-recipe-btn" onclick="removeRecipe('${r._id}')">Remove</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function startEdit(id){
+  document.getElementById("name-display-"+id).style.display = "none";
+  document.getElementById("name-edit-"+id).style.display    = "flex";
+  document.getElementById("name-input-"+id).focus();
+}
+function handleEditKey(e,id){ if(e.key==="Enter") saveEdit(id); if(e.key==="Escape") cancelEdit(id); }
+function saveEdit(id){
+  const input   = document.getElementById("name-input-"+id);
+  const newName = input.value.trim() || recipes.find(r=>r._id===id)?.name;
+  const r = recipes.find(r=>r._id===id);
+  if(r) r.name = newName;
+  document.getElementById("name-display-"+id).querySelector(".rname").textContent = newName;
+  document.getElementById("name-display-"+id).style.display = "flex";
+  document.getElementById("name-edit-"+id).style.display    = "none";
+  document.getElementById("btn-import").textContent = `Import ${recipes.length} Recipe${recipes.length!==1?"s":""} to Mealie →`;
+}
+function cancelEdit(id){
+  document.getElementById("name-display-"+id).style.display = "flex";
+  document.getElementById("name-edit-"+id).style.display    = "none";
+}
+function removeRecipe(id){
+  recipes = recipes.filter(r=>r._id!==id);
+  document.querySelector(`[data-recipe-id="${id}"]`)?.remove();
+  document.getElementById("review-heading").textContent = `${recipes.length} recipe${recipes.length!==1?"s":""} ready to import`;
+  document.getElementById("btn-import").textContent     = `Import ${recipes.length} Recipe${recipes.length!==1?"s":""} to Mealie →`;
+  if(!recipes.length){ document.getElementById("no-recipes").style.display="block"; document.getElementById("btn-import").style.display="none"; }
+}
+
+document.getElementById("btn-import").addEventListener("click", importAll);
+
+// ── Mealie payload ─────────────────────────────────────────────────────────
+function mergeIntoBase(base, recipe){
+  const merged     = Object.assign({}, base);
+  merged.name        = recipe.name;
+  merged.description = recipe.description || base.description || "";
+  merged.recipeYield = recipe.recipeYield || base.recipeYield || "";
+  merged.prepTime    = recipe.prepTime    || base.prepTime    || null;
+  merged.cookTime    = recipe.cookTime    || base.cookTime    || null;
+  merged.totalTime   = recipe.totalTime   || base.totalTime   || null;
+
+  merged.recipeIngredient = (recipe.recipeIngredient || []).map((ing, i) => {
+    const tpl = (base.recipeIngredient || [])[0] || {};
+    return Object.assign({}, tpl, {
+      referenceId: uid(), title: null, note: ing, originalText: ing,
+      quantity: null, unit: null, food: null, disableAmount: true, isFood: false, position: i+1
+    });
+  });
+
+  merged.recipeInstructions = (recipe.recipeInstructions || []).map(step => {
+    const tpl = (base.recipeInstructions || [])[0] || {};
+    return Object.assign({}, tpl, { id: uid(), title: "", text: step, ingredientReferences: [] });
+  });
+
+  merged.notes = recipe.notes ? [{ title: "Notes", text: recipe.notes }] : (base.notes || []);
+  return merged;
+}
+
+function addResult(r){
+  const div = document.createElement("div");
+  div.className = `result-row ${r.ok ? "ok" : "err"}`;
+  div.innerHTML = `
+    <div class="result-left">
+      <span>${r.ok ? "✓" : "✗"}</span>
+      <span class="result-name">${esc(r.name)}</span>
+    </div>
+    ${r.ok && r.slug ? `<a href="${esc(cfg.mealieUrl)}/recipe/${esc(r.slug)}" target="_blank" class="result-link">view →</a>` : ""}
+    ${!r.ok ? `<span class="result-error">${esc(r.error||"")}</span>` : ""}`;
+  document.getElementById("import-results").appendChild(div);
+}
+
+// ── Import flow ────────────────────────────────────────────────────────────
+async function importAll(){
+  goTo("importing");
+  document.getElementById("import-results").innerHTML = "";
+  const total = recipes.length;
+  let done = 0;
+  const allResults = [];
+
+  for(const recipe of recipes){
+    let result;
+    try {
+      const cr = await fetch(`${cfg.mealieUrl}/api/recipes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cfg.mealieToken}` },
+        body: JSON.stringify({ name: recipe.name })
+      });
+      if(!cr.ok) throw new Error(`Create: HTTP ${cr.status}`);
+      const slugRaw = await cr.json();
+      const slug    = typeof slugRaw === "string" ? slugRaw : (slugRaw?.slug || String(slugRaw));
+
+      const gr = await fetch(`${cfg.mealieUrl}/api/recipes/${slug}`, {
+        headers: { "Authorization": `Bearer ${cfg.mealieToken}` }
+      });
+      if(!gr.ok) throw new Error(`Fetch base: HTTP ${gr.status}`);
+      const base = await gr.json();
+
+      const payload = mergeIntoBase(base, recipe);
+      const ur = await fetch(`${cfg.mealieUrl}/api/recipes/${slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cfg.mealieToken}` },
+        body: JSON.stringify(payload)
+      });
+      if(!ur.ok){ const eb = await ur.json().catch(()=>({})); throw new Error(`Update ${ur.status}: ${JSON.stringify(eb?.detail||eb)}`); }
+      result = { name: recipe.name, ok: true, slug };
+    } catch(err) {
+      result = { name: recipe.name, ok: false, error: err.message };
+    }
+
+    done++;
+    allResults.push(result);
+    addResult(result);
+    document.getElementById("import-counter").textContent = `${done}/${total}`;
+    document.getElementById("progress-fill").style.width  = `${Math.round((done/total)*100)}%`;
+  }
+  setTimeout(() => renderDone(allResults), 500);
+}
+
+// ── Done ───────────────────────────────────────────────────────────────────
+function renderDone(results){
+  goTo("done");
+  const ok   = results.filter(r=>r.ok).length;
+  const fail = results.filter(r=>!r.ok).length;
+
+  document.getElementById("done-header").innerHTML = `
+    <div class="done-emoji">${fail===0?"🎉":"⚠️"}</div>
+    <div class="done-title">${ok} recipe${ok!==1?"s":""} imported</div>
+    ${fail>0?`<div class="done-fail">${fail} failed — see details below</div>`:""}
+    <a href="${esc(cfg.mealieUrl)}" target="_blank" class="done-open">Open Mealie →</a>`;
+
+  const container = document.getElementById("done-results");
+  container.innerHTML = "";
+  results.forEach(r => {
+    const div = document.createElement("div");
+    div.className = `result-row ${r.ok?"ok":"err"}`;
+    div.innerHTML = `
+      <div class="result-left">
+        <span>${r.ok?"✓":"✗"}</span>
+        <span class="result-name">${esc(r.name)}</span>
+      </div>
+      ${r.ok&&r.slug?`<a href="${esc(cfg.mealieUrl)}/recipe/${esc(r.slug)}" target="_blank" class="result-link">view →</a>`:""}
+      ${!r.ok?`<span class="result-error">${esc(r.error||"")}</span>`:""}`;
+    container.appendChild(div);
+  });
+}
+
+function startOver(){
+  files = []; recipes = [];
+  document.getElementById("file-list").innerHTML = "";
+  document.getElementById("file-list-wrap").style.display = "none";
+  document.getElementById("btn-process").disabled = true;
+  document.getElementById("btn-process").textContent = "Add files to continue";
+  goTo("upload");
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadSavedConfig();
+</script>
+</body>
+</html>

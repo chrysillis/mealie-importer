@@ -1,0 +1,12 @@
+services:
+  recipe-importer:
+    image: node:20-alpine
+    working_dir: /app
+    command: node server.js
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./server.js:/app/server.js:ro
+      - ./mealie-recipe-importer.html:/app/public/mealie-recipe-importer.html:ro
