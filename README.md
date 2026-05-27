@@ -29,17 +29,19 @@ Recipes can be in any language — the AI preserves the original language when i
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/chrysillis/mealie-importer.git
-cd mealie-importer
+git clone https://github.com/chrysillis/mealie-recipe-importer.git
+cd mealie-recipe-importer
 ```
 
 ### 2. Start the app
 
 ```bash
-docker compose up
+docker compose up --build
 ```
 
 Then open **http://localhost:3000** in your browser.
+
+> The `--build` flag is only needed the first time, or after updating the files. After that, `docker compose up` on its own is fine.
 
 ### 3. Configure the app
 
